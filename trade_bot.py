@@ -2,7 +2,9 @@ name: Monitor Trade Alerts
 
 on:
   schedule:
+    # Runs every 5 minutes
     - cron: '*/5 * * * *'
+  # Allows manual runs from the Actions tab
   workflow_dispatch:
 
 jobs:
