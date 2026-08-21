@@ -58,28 +58,52 @@ def get_current_trades():
         soup = BeautifulSoup(r.text, 'html.parser')
         trades = []
 
-        for element in soup.find_all(['li', 'div', 'p', 'tr']):
-            text = element.get_text(separator=" ", strip=True)
-            if re.search(r'\btrade\b', text, re.IGNORECASE) and 15 < len(text) < 500:
-                clean_text = ' '.join(text.split())
-                if clean_text not in trades:
-                    trades.append(clean_text)
+        timeline_items = soup.find_all("div", class_="timeline-item")
+
+        for item in timeline_items:
+            # Check the event header type
+            header_span = item.find("span", class_="fw-bold")
+            if not header_span or header_span.get_text(strip=True).lower() != "trade":
+                continue
+
+            # Target the details container
+            details_div = item.find("div", class_="font-16")
+            if not details_div:
+                continue
+
+            # Remove commissioner actions if present
+            for commish in details_div.find_all("div", class_="commishLink"):
+                commish.decompose()
+
+            # Preserve linebreaks between traded players
+            for br in details_div.find_all("br"):
+                br.replace_with("\n")
+
+            trade_text = details_div.get_text().strip()
+            # Clean up empty lines/spaces while keeping single line breaks
+            cleaned_lines = [line.strip() for line in trade_text.splitlines() if line.strip()]
+            normalized_trade = "\n".join(cleaned_lines)
+
+            if normalized_trade and normalized_trade not in trades:
+                trades.append(normalized_trade)
 
         return trades
     except Exception as e:
-        print(f"Error fetching league page: {e}")
+        print(f"Error fetching page: {e}")
         return []
 
 def read_seen_trades():
     if not os.path.exists(TRADES_FILE):
         return set()
     with open(TRADES_FILE, 'r', encoding='utf-8') as f:
-        return set(line.strip() for line in f if line.strip())
+        # Separate entries by double newlines since trades span multiple lines
+        content = f.read()
+        return set(trade.strip() for trade in content.split("\n---\n") if trade.strip())
 
 def append_seen_trades(new_trades):
     with open(TRADES_FILE, 'a', encoding='utf-8') as f:
         for trade in new_trades:
-            f.write(trade + '\n')
+            f.write(trade + '\n---\n')
 
 def send_discord_notification(message):
     try:
@@ -89,7 +113,7 @@ def send_discord_notification(message):
     except Exception as e:
         print(f"Error sending Discord notification: {e}")
 
-# --- Main Script ---
+# --- Main Execution ---
 if not WEBHOOK_URL:
     print("Error: DISCORD_WEBHOOK_URL environment variable is not set.")
     exit(1)
@@ -97,6 +121,7 @@ if not WEBHOOK_URL:
 current_trades = get_current_trades()
 seen_trades = read_seen_trades()
 
+# Only keep trades not previously logged
 new_trades = [t for t in current_trades if t not in seen_trades]
 
 if new_trades:
