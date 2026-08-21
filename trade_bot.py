@@ -4,7 +4,8 @@ import requests
 from bs4 import BeautifulSoup
 
 # --- Configuration ---
-LEAGUE_URL = "https://www.pennantchase.com/league/baseball/home?lgid=691"
+BASE_URL = "https://www.pennantchase.com"
+LEAGUE_URL = f"{BASE_URL}/league/baseball/home?lgid=691"
 WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL")
 TRADES_FILE = "last_trades.txt"
 
@@ -33,6 +34,7 @@ TEAM_NAME_MAP = {
     "Oakland Athletics": "<@&773897507272261683>",
     "Philadelphia Phillies": "<@&622614284979011595>",
     "Pittsburgh Pirates": "<@&622615936234684416>",
+    "Cardinals": "<@&622613261841596426>",
     "St. Louis Cardinals": "<@&622613261841596426>",
     "San Diego Padres": "<@&622618093868548097>",
     "San Francisco Giants": "<@&622615034157203469>",
@@ -70,9 +72,19 @@ def get_current_trades():
             if not details_div:
                 continue
 
+            # Remove commissioner links
             for commish in details_div.find_all("div", class_="commishLink"):
                 commish.decompose()
 
+            # Convert player links to Discord markdown links [Name](https://...)
+            for a_tag in details_div.find_all("a", href=True):
+                href = a_tag["href"]
+                if not href.startswith("http"):
+                    href = f"{BASE_URL}{href}"
+                player_name = a_tag.get_text(strip=True)
+                a_tag.replace_with(f"[{player_name}]({href})")
+
+            # Handle linebreaks between trade components
             for br in details_div.find_all("br"):
                 br.replace_with("\n")
 
