@@ -1,0 +1,43 @@
+name: Monitor Trade Alerts
+
+on:
+  schedule:
+    # Runs every 5 minutes
+    - cron: '*/5 * * * *'
+  # Allows manual runs from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  check-trades:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          pip install requests beautifulsoup4
+
+      - name: Run trade monitor
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: python trade_bot.py
+
+      - name: Commit tracked trades
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          touch last_trades.txt
+          git add last_trades.txt
+          if ! git diff --cached --quiet; then
+            git commit -m "Update logged trades"
+            git push
+          fi
