@@ -5,7 +5,7 @@ from bs4 import BeautifulSoup
 
 # --- Configuration ---
 BASE_URL = "https://www.pennantchase.com"
-LEAGUE_URL = f"{BASE_URL}/league/baseball/transactionlog?lgid=691"
+LEAGUE_URL = f"{BASE_URL}/league/baseball/home?lgid=691"
 WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL")
 TRADES_FILE = "last_trades.txt"
 
@@ -65,21 +65,18 @@ def get_current_trades():
 
         for item in timeline_items:
             header_span = item.find("span", class_="fw-bold")
-            if not header_span:
-                continue
-            
-            header_text = header_span.get_text(strip=True).lower()
-            # Match trades (including commish draft pick trades if desired)
-            if header_text not in ["trade", "draft pick trade"]:
+            if not header_span or header_span.get_text(strip=True).lower() != "trade":
                 continue
 
             details_div = item.find("div", class_="font-16")
             if not details_div:
                 continue
 
+            # Remove commissioner links
             for commish in details_div.find_all("div", class_="commishLink"):
                 commish.decompose()
 
+            # Convert player links to Discord markdown links [Name](https://...)
             for a_tag in details_div.find_all("a", href=True):
                 href = a_tag["href"]
                 if not href.startswith("http"):
@@ -87,6 +84,7 @@ def get_current_trades():
                 player_name = a_tag.get_text(strip=True)
                 a_tag.replace_with(f"[{player_name}]({href})")
 
+            # Handle linebreaks between trade components
             for br in details_div.find_all("br"):
                 br.replace_with("\n")
 
@@ -99,7 +97,7 @@ def get_current_trades():
 
         return trades
     except Exception as e:
-        print(f"Error fetching transaction page: {e}")
+        print(f"Error fetching page: {e}")
         return []
 
 def read_seen_trades():
@@ -130,8 +128,7 @@ if not WEBHOOK_URL:
 current_trades = get_current_trades()
 seen_trades = read_seen_trades()
 
-# Preserves chronological order (oldest first) if multiple new trades exist
-new_trades = [t for t in reversed(current_trades) if t not in seen_trades]
+new_trades = [t for t in current_trades if t not in seen_trades]
 
 if new_trades:
     for trade in new_trades:
