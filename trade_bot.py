@@ -5,7 +5,7 @@ from bs4 import BeautifulSoup
 
 # --- Configuration ---
 BASE_URL = "https://www.pennantchase.com"
-LEAGUE_URL = f"{BASE_URL}/league/baseball/home?lgid=691"
+LEAGUE_URL = f"{BASE_URL}/league/baseball/transactionlog?lgid=691"
 WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL")
 TRADES_FILE = "last_trades.txt"
 
@@ -18,6 +18,7 @@ TEAM_NAME_MAP = {
     "Chicago Cubs": "<@&773897833211625473>",
     "Chicago White Sox": "<@&622615457299693578>",
     "Cincinnati Reds": "<@&773898419143442432>",
+    "Cleveland Guardians": "<@&773898193041358879>",
     "Cleveland Indians": "<@&773898193041358879>",
     "Colorado Rockies": "<@&773898540321079316>",
     "Detroit Tigers": "<@&622615931625144341>",
@@ -33,6 +34,7 @@ TEAM_NAME_MAP = {
     "Oakland Athletics": "<@&773897507272261683>",
     "Philadelphia Phillies": "<@&622614284979011595>",
     "Pittsburgh Pirates": "<@&622615936234684416>",
+    "Cardinals": "<@&622613261841596426>",
     "St. Louis Cardinals": "<@&622613261841596426>",
     "San Diego Padres": "<@&622618093868548097>",
     "San Francisco Giants": "<@&622615034157203469>",
@@ -63,18 +65,21 @@ def get_current_trades():
 
         for item in timeline_items:
             header_span = item.find("span", class_="fw-bold")
-            if not header_span or header_span.get_text(strip=True).lower() != "trade":
+            if not header_span:
+                continue
+            
+            header_text = header_span.get_text(strip=True).lower()
+            # Match trades (including commish draft pick trades if desired)
+            if header_text not in ["trade", "draft pick trade"]:
                 continue
 
             details_div = item.find("div", class_="font-16")
             if not details_div:
                 continue
 
-            # Remove commissioner links
             for commish in details_div.find_all("div", class_="commishLink"):
                 commish.decompose()
 
-            # Convert player links to Discord markdown links [Name](https://...)
             for a_tag in details_div.find_all("a", href=True):
                 href = a_tag["href"]
                 if not href.startswith("http"):
@@ -82,7 +87,6 @@ def get_current_trades():
                 player_name = a_tag.get_text(strip=True)
                 a_tag.replace_with(f"[{player_name}]({href})")
 
-            # Handle linebreaks between trade components
             for br in details_div.find_all("br"):
                 br.replace_with("\n")
 
@@ -95,7 +99,7 @@ def get_current_trades():
 
         return trades
     except Exception as e:
-        print(f"Error fetching page: {e}")
+        print(f"Error fetching transaction page: {e}")
         return []
 
 def read_seen_trades():
@@ -126,7 +130,8 @@ if not WEBHOOK_URL:
 current_trades = get_current_trades()
 seen_trades = read_seen_trades()
 
-new_trades = [t for t in current_trades if t not in seen_trades]
+# Preserves chronological order (oldest first) if multiple new trades exist
+new_trades = [t for t in reversed(current_trades) if t not in seen_trades]
 
 if new_trades:
     for trade in new_trades:
