@@ -82,7 +82,7 @@ def get_current_trades():
                 if not href.startswith("http"):
                     href = f"{BASE_URL}{href}"
                 player_name = a_tag.get_text(strip=True)
-                a_tag.replace_with(f"[{player_name}]({href})")
+                a_tag.replace_with(f"[{player_name}](<{href}>)")
 
             # Handle linebreaks between trade components
             for br in details_div.find_all("br"):
