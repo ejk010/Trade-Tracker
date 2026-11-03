@@ -5,7 +5,7 @@ from bs4 import BeautifulSoup
 
 # --- Configuration ---
 BASE_URL = "https://www.pennantchase.com"
-LEAGUE_URL = f"{BASE_URL}/league/baseball/home?lgid=691"
+LEAGUE_URL = f"{BASE_URL}/league/baseball/home?lgid=691&foo=noverify"
 WEBHOOK_URL = os.environ.get("DISCORD_WEBHOOK_URL")
 TRADES_FILE = "last_trades.txt"
 
